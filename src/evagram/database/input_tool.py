@@ -1,5 +1,6 @@
 import pickle
 import os
+import psycopg2
 
 
 class Session:
@@ -19,6 +20,13 @@ class Session:
             return 1
         with self.conn:
             with self.conn.cursor() as cur:
+                cur.execute("SELECT pg_backend_pid();")
+                conn_pid = cur.fetchone()[0]
+                cur.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
+                conn_username = cur.fetchone()[0]
+                if conn_username != self.wf_dictionary["owner"]:
+                    print("Terminating session, invalid workflow parameters.")
+                    return 1
                 self.owner_id = add_current_user(cur, self.wf_dictionary["owner"])
                 self.experiment_id = add_current_experiment(
                     cur, self.wf_dictionary["experiment"], self.owner_id)
