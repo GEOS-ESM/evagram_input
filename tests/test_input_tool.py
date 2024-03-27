@@ -5,28 +5,19 @@ import psycopg2
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
 
-# environment variables for connecting to database
-db_host = os.environ.get('DB_HOST')
-db_port = os.environ.get('DB_PORT')
-db_name = os.environ.get('DB_NAME')
-db_user = os.environ.get('DB_USER')
-db_password = os.environ.get('DB_PASSWORD')
-
-conn = psycopg2.connect(
-    host=db_host,
-    port=db_port,
-    dbname=db_name,
-    user=db_user,
-    password=db_password
-)
+conn = psycopg2.connect("host=localhost port=5432 dbname=plots user=postgres")
+wf_dictionary = {
+    'owner': 'postgres',
+    'experiment': 'experiment1',
+    'eva_directory': 'tests/eva'
+}
 
 
 class TestDatabaseInputTool(unittest.TestCase):
     def setUp(self):
         self.cur = conn.cursor()
-        input_tool.main(['tests/eva'])
+        input_tool.Session(conn, wf_dictionary)
 
         self.cur.execute(
             """SELECT setval('owners_owner_id_seq',
