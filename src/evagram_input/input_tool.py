@@ -3,33 +3,36 @@ import os
 import psycopg2
 
 
-class Session:
-    """The session object opens a connection with the evagram database and serves as the
+class Session(object):
+    """The session object opens a connection to the evagram database and serves as the
     central point for inputting data from a swell task."""
-    def __init__(self, wf_dictionary):
-        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres")
-        self.cursor = self.conn.cursor()
-        self.wf_dictionary = wf_dictionary
+    def __init__(self, owner: str, experiment: str, eva_directory: str):
+        self.owner = owner
+        self.experiment = experiment
+        self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
 
     def input_data(self):
-        # Verifying expected parameters
-        required = {'owner', 'experiment', 'eva_directory'}
-        difference = required.difference(self.wf_dictionary)
-        if len(difference) > 0:
-            raise Exception(f"Missing required parameters for workflow dictionary: {difference}")
-        with self.conn:
+        try:
+            self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres")
+            self.cursor = self.conn.cursor()
             self.verify_session_user()
-            self.owner_id = self.add_current_user(self.wf_dictionary["owner"])
-            self.experiment_id = self.add_current_experiment(
-                self.wf_dictionary["experiment"], self.owner_id)
+            self.owner_id = self.add_current_user(self.owner)
+            self.experiment_id = self.add_current_experiment(self.experiment, self.owner_id)
             print("Session created successfully! Running task...")
             self.run_task()
             print("Task completed!")
+        except psycopg2.OperationalError as err:
+            print(err)
+        else:
+            self.conn.commit()
+        finally:
+            self.cursor.close()
+            self.conn.close()
 
     def run_task(self):
-        eva_directory_path = self.wf_dictionary["eva_directory"]
+        eva_directory_path = self.eva_directory
         for observation_dir in os.listdir(eva_directory_path):
             observation_path = os.path.join(eva_directory_path, observation_dir)
             if os.path.isdir(observation_path):
@@ -42,7 +45,7 @@ class Session:
         conn_pid = self.cursor.fetchone()[0]
         self.cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
         conn_username = self.cursor.fetchone()[0]
-        if conn_username != self.wf_dictionary["owner"]:
+        if conn_username != self.owner:
             raise Exception("Terminating session, invalid workflow parameters.")
 
     def insert_table_record(self, data, table):

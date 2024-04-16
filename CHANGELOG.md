@@ -12,3 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added schema testing to validate SQL operations made by the input tool
 - Added the first version of the input tool module that opens database sessions for Swell workflow tasks
 - Added `CODEOWNERS` file
+
+### Changed
+
+### Fixed
+
+### Removed
+
+### Deprecated
