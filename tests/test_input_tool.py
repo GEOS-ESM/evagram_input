@@ -3,8 +3,9 @@ import unittest
 import psycopg2
 
 
-conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres")
+conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres password=testing123")
 api.input_data(owner='postgres', experiment='experiment1', eva_directory='tests/eva')
+
 
 class TestDatabaseInputTool(unittest.TestCase):
     def setUp(self):
@@ -41,8 +42,9 @@ class TestDatabaseInputTool(unittest.TestCase):
 
     def test_RollbackOnException(self):
         with self.assertRaises(Exception):
-            api.input_data(owner='postgres', experiment='bad_experiment', eva_directory='tests/dummy')
-        
+            api.input_data(
+                owner='postgres', experiment='bad_experiment', eva_directory='tests/dummy')
+
         self.cur.execute(
             "SELECT (owner_id) FROM owners WHERE username=%s", ("postgres",))
         queryset = self.cur.fetchone()
