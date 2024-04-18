@@ -15,7 +15,7 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
-        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres",
+        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=default user=postgres",
                                      password=os.getenv('DB_PASSWORD'))
         self.cursor = self.conn.cursor()
 
@@ -24,9 +24,7 @@ class Session(object):
             self._verify_session_user()
             self.owner_id = self._add_current_user(self.owner)
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
-            print("Session created successfully! Running task...")
             self.run_task()
-            print("Task completed!")
         except psycopg2.OperationalError as err:
             print("err")
         else:

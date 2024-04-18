@@ -36,6 +36,9 @@ jobs:
         with:
           repository: JCSDA-internal/evagram
 
+      - name: Checkout Evagram Feature Branch
+        run: git switch feature/evagram_input_testing
+
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
