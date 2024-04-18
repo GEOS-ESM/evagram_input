@@ -44,7 +44,12 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
+      - name: Test Evagram Models
+        run: python src/evagram/website/backend/manage.py test api.test_models --keepdb
+        env:
+          DB_PASSWORD: ${{secrets.DB_PASSWORD}}
+
       - name: Run Test Script
-        run: python src/evagram/website/backend/manage.py test api.test_input_tool --keepdb
+        run: python src/evagram/website/backend/manage.py test api.test_input_tool
         env:
           DB_PASSWORD: ${{secrets.DB_PASSWORD}}
