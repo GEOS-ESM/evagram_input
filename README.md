@@ -4,10 +4,10 @@
 
 ### Prerequisites
 
-The prerequisite modules required to install are the `psycopg2-binary` library and `evagram_input` module.
+The prerequisite modules required to install are the `psycopg2-binary` and `python-dotenv` libraries, and the `evagram_input` module.
 
 ```sh
-pip install psycopg2-binary evagram_input
+pip install psycopg2-binary python-dotenv evagram_input
 ```
 
 Note: Make sure you are running in a Linux environment for usage.
@@ -23,5 +23,5 @@ from evagram_input import *
 The central endpoint to the module is through the `input_data` function. An example of usage is shown here:
 
 ```python
-api.input_data(owner='postgres', experiment='experiment1', eva_directory='tests/eva')
+input_data(owner='postgres', experiment='experiment1', eva_directory='tests/eva')
 ```
