@@ -1,4 +1,5 @@
 from evagram_input import input_data
+from evagram_input import input_data
 import unittest
 import psycopg2
 import os
