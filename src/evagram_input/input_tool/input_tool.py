@@ -15,7 +15,7 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
-        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres", 
+        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres",
                                      password=os.getenv('DB_PASSWORD'))
         self.cursor = self.conn.cursor()
 
@@ -42,7 +42,8 @@ class Session(object):
             if os.path.isdir(observation_path):
                 for plot in os.listdir(observation_path):
                     if plot.endswith(".pkl"):
-                        self._add_plot(eva_directory_path, observation_dir, plot, self.experiment_id)
+                        self._add_plot(
+                            eva_directory_path, observation_dir, plot, self.experiment_id)
 
     def _verify_session_user(self):
         self.cursor.execute("SELECT pg_backend_pid();")

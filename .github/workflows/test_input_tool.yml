@@ -34,7 +34,7 @@ jobs:
       - name: Checkout Evagram
         uses: actions/checkout@v2
         with:
-          name: JCSDA/evagram
+          repository: JCSDA/evagram
 
       - name: Install Dependencies
         run: pip install -r requirements.txt
