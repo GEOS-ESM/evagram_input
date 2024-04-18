@@ -4,9 +4,6 @@ import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class Session(object):
@@ -18,12 +15,12 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
+        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres", 
+                                     password=os.getenv('DB_PASSWORD'))
+        self.cursor = self.conn.cursor()
 
     def input_data(self):
         try:
-            self.conn = psycopg2.connect("host=postgres port=5432 dbname=plots user=postgres", 
-                                         password=os.getenv('DB_PASSWORD'))
-            self.cursor = self.conn.cursor()
             self._verify_session_user()
             self.owner_id = self._add_current_user(self.owner)
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
@@ -31,7 +28,7 @@ class Session(object):
             self.run_task()
             print("Task completed!")
         except psycopg2.OperationalError as err:
-            print(err)
+            print("err")
         else:
             self.conn.commit()
         finally:

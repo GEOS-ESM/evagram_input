@@ -26,12 +26,18 @@ jobs:
         with:
           python-version: 3.x
 
-      - name: Install Dependencies
+      - name: Install Evagram Input Module
         run: |
           python -m pip install --upgrade pip
-          pip install . -r requirements.txt
+          pip install .
+
+      - name: Checkout Evagram
+        uses: actions/checkout@v2
+        with:
+          name: JCSDA/evagram
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
 
       - name: Run Test Script
-        run: python3 ./tests/test_input_tool.py
-        env:
-          DB_PASSWORD: ${{secrets.DB_PASSWORD}}
+        run: python src/evagram/website/backend/manage.py test api.test_input_tool
