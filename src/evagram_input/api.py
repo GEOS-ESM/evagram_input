@@ -1,4 +1,4 @@
-from evagram_input import input_tool
+from evagram_input.input_tool import input_tool
 
 
 def input_data(**kwargs):
