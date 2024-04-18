@@ -1,10 +1,15 @@
-from evagram_input import api
+from evagram_input import input_data
 import unittest
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres password=testing123")
-api.input_data(owner='postgres', experiment='experiment1', eva_directory='tests/eva')
+conn = psycopg2.connect("host=postgres port=5432 dbname=plots user=postgres", 
+                        password=os.getenv('DB_PASSWORD'))
+input_data(owner='postgres', experiment='experiment1', eva_directory='tests/eva')
 
 
 class TestDatabaseInputTool(unittest.TestCase):
@@ -34,15 +39,15 @@ class TestDatabaseInputTool(unittest.TestCase):
 
     def test_WrongRootOwner(self):
         with self.assertRaises(Exception):
-            api.input_data(owner='test', experiment='experiment1', eva_directory='tests/eva')
+            input_data(owner='test', experiment='experiment1', eva_directory='tests/eva')
 
     def test_ExperimentPathNotFound(self):
         with self.assertRaises(FileNotFoundError):
-            api.input_data(owner='postgres', experiment='experiment1', eva_directory='not/a/path')
+            input_data(owner='postgres', experiment='experiment1', eva_directory='not/a/path')
 
     def test_RollbackOnException(self):
         with self.assertRaises(Exception):
-            api.input_data(
+            input_data(
                 owner='postgres', experiment='bad_experiment', eva_directory='tests/dummy')
 
         self.cur.execute(

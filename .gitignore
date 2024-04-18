@@ -6,3 +6,4 @@
 .#*
 **/CVS/
 /venv
+.env

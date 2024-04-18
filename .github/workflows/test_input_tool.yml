@@ -14,12 +14,7 @@ jobs:
       postgres:
         image: postgres:latest
         env:
-          POSTGRES_DB: plots
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: testing123
-          POSTGRES_HOST: 127.0.0.1
-        ports:
-          - 5432:5432
+          POSTGRES_PASSWORD: ${{secrets.DB_PASSWORD}}
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
@@ -38,3 +33,5 @@ jobs:
 
       - name: Run Test Script
         run: python3 ./tests/test_input_tool.py
+        env:
+          DB_PASSWORD: ${{secrets.DB_PASSWORD}}

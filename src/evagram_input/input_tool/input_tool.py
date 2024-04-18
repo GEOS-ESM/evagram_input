@@ -1,6 +1,9 @@
 import pickle
 import os
 import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Session(object):
@@ -15,11 +18,12 @@ class Session(object):
 
     def input_data(self):
         try:
-            self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=plots user=postgres")
+            self.conn = psycopg2.connect("host=postgres port=5432 dbname=plots user=postgres", 
+                                         password=os.getenv('DB_PASSWORD'))
             self.cursor = self.conn.cursor()
-            self.verify_session_user()
-            self.owner_id = self.add_current_user(self.owner)
-            self.experiment_id = self.add_current_experiment(self.experiment, self.owner_id)
+            self._verify_session_user()
+            self.owner_id = self._add_current_user(self.owner)
+            self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             print("Session created successfully! Running task...")
             self.run_task()
             print("Task completed!")
@@ -38,9 +42,9 @@ class Session(object):
             if os.path.isdir(observation_path):
                 for plot in os.listdir(observation_path):
                     if plot.endswith(".pkl"):
-                        self.add_plot(eva_directory_path, observation_dir, plot, self.experiment_id)
+                        self._add_plot(eva_directory_path, observation_dir, plot, self.experiment_id)
 
-    def verify_session_user(self):
+    def _verify_session_user(self):
         self.cursor.execute("SELECT pg_backend_pid();")
         conn_pid = self.cursor.fetchone()[0]
         self.cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
@@ -48,7 +52,7 @@ class Session(object):
         if conn_username != self.owner:
             raise Exception("Terminating session, invalid workflow parameters.")
 
-    def insert_table_record(self, data, table):
+    def _insert_table_record(self, data, table):
         self.cursor.execute(f"SELECT * FROM {table} LIMIT 0")
         colnames = [desc[0] for desc in self.cursor.description]
         # filter data to contain only existing columns in table
@@ -69,7 +73,7 @@ class Session(object):
             query += ")"
             self.cursor.execute(query, tuple(data.values()))
 
-    def add_current_user(self, username):
+    def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
         self.cursor.execute("SELECT (owner_id) FROM owners WHERE username=%s", (username,))
         current_user = self.cursor.fetchall()
@@ -79,10 +83,10 @@ class Session(object):
         else:
             # creates a new user by the specified username
             user_obj = {"username": username}
-            self.insert_table_record(user_obj, "owners")
-            return self.add_current_user(username)
+            self._insert_table_record(user_obj, "owners")
+            return self._add_current_user(username)
 
-    def add_current_experiment(self, experiment_name, owner_id):
+    def _add_current_experiment(self, experiment_name, owner_id):
         # Adds the current experiments conducted by user in the workflow
         # and returns its identifier in the database
         self.cursor.execute("""SELECT (experiment_id) FROM experiments
@@ -97,10 +101,10 @@ class Session(object):
                 "experiment_name": experiment_name,
                 "owner_id": owner_id
             }
-            self.insert_table_record(experiment_obj, "experiments")
-            return self.add_current_experiment(experiment_name, owner_id)
+            self._insert_table_record(experiment_obj, "experiments")
+            return self._add_current_experiment(experiment_name, owner_id)
 
-    def add_plot(self, experiment_path, observation_name, plot_filename, experiment_id):
+    def _add_plot(self, experiment_path, observation_name, plot_filename, experiment_id):
         plot_file_path = os.path.join(
             experiment_path, observation_name, plot_filename)
 
@@ -135,20 +139,20 @@ class Session(object):
             observation_obj = {
                 "observation_name": observation_name,
             }
-            self.insert_table_record(observation_obj, "observations")
+            self._insert_table_record(observation_obj, "observations")
 
         if new_variable:
             variable_obj = {
                 "variable_name": var_name,
                 "channel": channel
             }
-            self.insert_table_record(variable_obj, "variables")
+            self._insert_table_record(variable_obj, "variables")
 
         if new_group:
             group_obj = {
                 "group_name": group_name
             }
-            self.insert_table_record(group_obj, "groups")
+            self._insert_table_record(group_obj, "groups")
 
         # get the observation, variable, group ids
         self.cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
@@ -172,4 +176,4 @@ class Session(object):
         plot_obj["variable_id"] = variable_id
 
         # insert plot to database
-        self.insert_table_record(plot_obj, "plots")
+        self._insert_table_record(plot_obj, "plots")
