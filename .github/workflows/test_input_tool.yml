@@ -44,3 +44,5 @@ jobs:
 
       - name: Run Test Script
         run: python src/evagram/website/backend/manage.py test api.test_input_tool
+        env:
+          DB_PASSWORD: ${{secrets.DB_PASSWORD}}
