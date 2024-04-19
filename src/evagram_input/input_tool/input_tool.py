@@ -15,7 +15,7 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
-        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_plots user=postgres",
+        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
                                      password=os.getenv('DB_PASSWORD'))
         self.cursor = self.conn.cursor()
 

@@ -14,8 +14,6 @@ jobs:
       postgres:
         image: postgres:latest
         env:
-          POSTGRES_DB: test_plots
-          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ${{secrets.DB_PASSWORD}}
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         ports:
@@ -44,12 +42,7 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Test Evagram Models
-        run: python src/evagram/website/backend/manage.py test api.test_models --keepdb
-        env:
-          DB_PASSWORD: ${{secrets.DB_PASSWORD}}
-
       - name: Run Test Script
-        run: python src/evagram/website/backend/manage.py test api.test_input_tool
+        run: python src/evagram/website/backend/manage.py test input_app.test_input_tool
         env:
           DB_PASSWORD: ${{secrets.DB_PASSWORD}}
