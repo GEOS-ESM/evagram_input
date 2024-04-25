@@ -24,7 +24,7 @@ class Session(object):
             self._verify_session_user()
             self.owner_id = self._add_current_user(self.owner)
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
-            self.run_task()
+            self._run_task()
         except psycopg2.OperationalError as err:
             print("err")
         else:
@@ -33,7 +33,7 @@ class Session(object):
             self.cursor.close()
             self.conn.close()
 
-    def run_task(self):
+    def _run_task(self):
         eva_directory_path = self.eva_directory
         for observation_dir in os.listdir(eva_directory_path):
             observation_path = os.path.join(eva_directory_path, observation_dir)
