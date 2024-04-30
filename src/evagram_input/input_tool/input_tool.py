@@ -15,9 +15,9 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
-        self.conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
+        self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
                                      password=os.getenv('DB_PASSWORD'))
-        self.cursor = self.conn.cursor()
+        self._cursor = self._conn.cursor()
 
     def input_data(self):
         try:
@@ -26,12 +26,12 @@ class Session(object):
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             self._run_task()
         except psycopg2.OperationalError as err:
-            print("err")
+            print(err)
         else:
-            self.conn.commit()
+            self._conn.commit()
         finally:
-            self.cursor.close()
-            self.conn.close()
+            self._cursor.close()
+            self._conn.close()
 
     def _run_task(self):
         eva_directory_path = self.eva_directory
@@ -44,16 +44,16 @@ class Session(object):
                             eva_directory_path, observation_dir, plot, self.experiment_id)
 
     def _verify_session_user(self):
-        self.cursor.execute("SELECT pg_backend_pid();")
-        conn_pid = self.cursor.fetchone()[0]
-        self.cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
-        conn_username = self.cursor.fetchone()[0]
+        self._cursor.execute("SELECT pg_backend_pid();")
+        conn_pid = self._cursor.fetchone()[0]
+        self._cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
+        conn_username = self._cursor.fetchone()[0]
         if conn_username != self.owner:
             raise Exception("Terminating session, invalid workflow parameters.")
 
     def _insert_table_record(self, data, table):
-        self.cursor.execute(f"SELECT * FROM {table} LIMIT 0")
-        colnames = [desc[0] for desc in self.cursor.description]
+        self._cursor.execute(f"SELECT * FROM {table} LIMIT 0")
+        colnames = [desc[0] for desc in self._cursor.description]
         # filter data to contain only existing columns in table
         data = {k: v for (k, v) in data.items() if k in colnames}
 
@@ -62,20 +62,20 @@ class Session(object):
         and_clause = [f"{key}=%s" for key in data]
         and_clause_str = " AND ".join(and_clause)
         query += and_clause_str
-        self.cursor.execute(query, tuple(data.values()))
+        self._cursor.execute(query, tuple(data.values()))
 
-        if len(self.cursor.fetchall()) == 0:
+        if len(self._cursor.fetchall()) == 0:
             query = f"INSERT INTO {table} ("
             query += ', '.join(data)
             query += ") VALUES ("
             query += ', '.join(["%s" for _ in range(len(data))])
             query += ")"
-            self.cursor.execute(query, tuple(data.values()))
+            self._cursor.execute(query, tuple(data.values()))
 
     def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
-        self.cursor.execute("SELECT (owner_id) FROM owners WHERE username=%s", (username,))
-        current_user = self.cursor.fetchall()
+        self._cursor.execute("SELECT (owner_id) FROM owners WHERE username=%s", (username,))
+        current_user = self._cursor.fetchall()
         if len(current_user) == 1:
             # returns owner_id of current user
             return current_user[0][0]
@@ -88,9 +88,9 @@ class Session(object):
     def _add_current_experiment(self, experiment_name, owner_id):
         # Adds the current experiments conducted by user in the workflow
         # and returns its identifier in the database
-        self.cursor.execute("""SELECT (experiment_id) FROM experiments
+        self._cursor.execute("""SELECT (experiment_id) FROM experiments
                     WHERE experiment_name=%s AND owner_id=%s""", (experiment_name, owner_id))
-        current_experiment = self.cursor.fetchall()
+        current_experiment = self._cursor.fetchall()
         if len(current_experiment) == 1:
             # returns experiment_id of current experiment
             return current_experiment[0][0]
@@ -123,16 +123,16 @@ class Session(object):
         group_name = plot_components[2]
 
         # insert observation, variable, group dynamically if not exist in database
-        self.cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
+        self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
                             (observation_name,))
-        new_observation = len(self.cursor.fetchall()) == 0
-        self.cursor.execute(
+        new_observation = len(self._cursor.fetchall()) == 0
+        self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
             AND (channel=%s OR channel IS NULL)""",
             (var_name, channel))
-        new_variable = len(self.cursor.fetchall()) == 0
-        self.cursor.execute("SELECT group_id FROM groups WHERE group_name=%s", (group_name,))
-        new_group = len(self.cursor.fetchall()) == 0
+        new_variable = len(self._cursor.fetchall()) == 0
+        self._cursor.execute("SELECT group_id FROM groups WHERE group_name=%s", (group_name,))
+        new_group = len(self._cursor.fetchall()) == 0
 
         if new_observation:
             observation_obj = {
@@ -154,16 +154,16 @@ class Session(object):
             self._insert_table_record(group_obj, "groups")
 
         # get the observation, variable, group ids
-        self.cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
+        self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
                             (observation_name,))
-        observation_id = self.cursor.fetchone()[0]
-        self.cursor.execute(
+        observation_id = self._cursor.fetchone()[0]
+        self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
             AND (channel=%s OR channel IS NULL)""",
             (var_name, channel))
-        variable_id = self.cursor.fetchone()[0]
-        self.cursor.execute("SELECT group_id FROM groups WHERE group_name=%s", (group_name,))
-        group_id = self.cursor.fetchone()[0]
+        variable_id = self._cursor.fetchone()[0]
+        self._cursor.execute("SELECT group_id FROM groups WHERE group_name=%s", (group_name,))
+        group_id = self._cursor.fetchone()[0]
 
         # create plot object
         plot_obj = {}
