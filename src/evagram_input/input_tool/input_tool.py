@@ -16,7 +16,7 @@ class Session(object):
         self.owner_id = None
         self.experiment_id = None
         self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
-                                     password=os.getenv('DB_PASSWORD'))
+                                      password=os.getenv('DB_PASSWORD'))
         self._cursor = self._conn.cursor()
 
     def input_data(self):
@@ -124,7 +124,7 @@ class Session(object):
 
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
-                            (observation_name,))
+                             (observation_name,))
         new_observation = len(self._cursor.fetchall()) == 0
         self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
@@ -155,7 +155,7 @@ class Session(object):
 
         # get the observation, variable, group ids
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
-                            (observation_name,))
+                             (observation_name,))
         observation_id = self._cursor.fetchone()[0]
         self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
