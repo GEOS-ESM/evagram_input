@@ -38,6 +38,12 @@ jobs:
         with:
           repository: JCSDA-internal/evagram
 
+      - name: Create PGPASS File
+        run: |
+          cd ~
+          echo 127.0.0.1:5432:test_evagram:postgres:${{secrets.DB_PASSWORD}} >> .pgpass
+          cd ${{github.workspace}}
+
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
