@@ -15,6 +15,9 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
+
+        self._diagnostics = 0
+        self._duplicates = 0
         self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
                                       password=os.getenv('DB_PASSWORD'))
         self._cursor = self._conn.cursor()
@@ -26,12 +29,21 @@ class Session(object):
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             self._run_task()
         except psycopg2.OperationalError as err:
-            print(err)
+            print("OperationalError:", err)
+        except FileNotFoundError as err:
+            print("FileNotFoundError:", err)
+        except RuntimeError as err:
+            print("RuntimeError: ", err)
         else:
+            print("Data successfully added into evagram! Exiting session with:")
+            print("Number of diagnostics added:", self._diagnostics)
+            print("Number of duplicates with same filename found:", self._duplicates)
             self._conn.commit()
         finally:
+            print("Terminating current workflow session...")
             self._cursor.close()
             self._conn.close()
+            print("Session object closed!")
 
     def _run_task(self):
         eva_directory_path = self.eva_directory
@@ -49,7 +61,7 @@ class Session(object):
         self._cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
         conn_username = self._cursor.fetchone()[0]
         if conn_username != self.owner:
-            raise Exception("Terminating session, invalid workflow parameters.")
+            raise RuntimeError("Connection refused, workflow owner does not match with username of database instance.")
 
     def _insert_table_record(self, data, table):
         self._cursor.execute(f"SELECT * FROM {table} LIMIT 0")
@@ -71,6 +83,9 @@ class Session(object):
             query += ', '.join(["%s" for _ in range(len(data))])
             query += ")"
             self._cursor.execute(query, tuple(data.values()))
+            self._diagnostics += 1
+        else:
+            self._duplicates += 1
 
     def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
@@ -108,7 +123,10 @@ class Session(object):
             experiment_path, observation_name, plot_filename)
 
         with open(plot_file_path, 'rb') as file:
-            dictionary = pickle.load(file)
+            try:
+                dictionary = pickle.load(file)
+            except Exception:
+                raise RuntimeError("There was a problem loading a diagnostics file in the given directory. Please try again.")
 
         # extract the div and script components
         div = dictionary['div']
@@ -118,10 +136,14 @@ class Session(object):
         filename_no_extension = os.path.splitext(plot_filename)[0]
         plot_components = filename_no_extension.split("_")
 
-        var_name = plot_components[0]
-        channel = plot_components[1] if plot_components[1] != '' else None
-        group_name = plot_components[2]
-
+        try:
+            assert(len(plot_components) == 3)
+            var_name = plot_components[0]
+            channel = plot_components[1] if plot_components[1] != '' else None
+            group_name = plot_components[2]
+        except Exception:
+            raise RuntimeError("Could not properly read filename of a diagnostic. Please try again.")
+        
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
                              (observation_name,))
