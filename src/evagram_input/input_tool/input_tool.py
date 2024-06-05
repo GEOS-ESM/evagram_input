@@ -35,7 +35,7 @@ class Session(object):
         except RuntimeError as err:
             print("RuntimeError: ", err)
         else:
-            print(f"Data successfully added into evagram for '{self.owner}' owner and
+            print(f"Data successfully added into evagram for '{self.owner}' owner and \
                   '{self.experiment}' experiment! Exiting session with: ")
             print("Number of diagnostics added:", self._diagnostics)
             print("Number of duplicates with same filename found:", self._duplicates)
