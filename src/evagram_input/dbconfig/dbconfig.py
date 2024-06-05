@@ -1,5 +1,5 @@
-import config
-import test_config
+from . import config
+from . import test_config
 
 
 class DatabaseConfiguration:
