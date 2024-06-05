@@ -35,7 +35,8 @@ class Session(object):
         except RuntimeError as err:
             print("RuntimeError: ", err)
         else:
-            print("Data successfully added into evagram! Exiting session with:")
+            print(f"Data successfully added into evagram for '{self.owner}' owner and
+                  '{self.experiment}' experiment! Exiting session with: ")
             print("Number of diagnostics added:", self._diagnostics)
             print("Number of duplicates with same filename found:", self._duplicates)
             self._conn.commit()
@@ -61,7 +62,9 @@ class Session(object):
         self._cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
         conn_username = self._cursor.fetchone()[0]
         if conn_username != self.owner:
-            raise RuntimeError("Connection refused, workflow owner does not match with username of database instance.")
+            raise RuntimeError(
+                f"Connection refused, workflow owner '{self.owner}' does not match \
+                with username in database instance.")
 
     def _insert_table_record(self, data, table):
         self._cursor.execute(f"SELECT * FROM {table} LIMIT 0")
@@ -126,7 +129,9 @@ class Session(object):
             try:
                 dictionary = pickle.load(file)
             except Exception:
-                raise RuntimeError("There was a problem loading a diagnostics file in the given directory. Please try again.")
+                raise RuntimeError(
+                    f"There was a problem loading the diagnostics file '{plot_filename}' \
+                    in the given directory. Please try again.")
 
         # extract the div and script components
         div = dictionary['div']
@@ -137,13 +142,15 @@ class Session(object):
         plot_components = filename_no_extension.split("_")
 
         try:
-            assert(len(plot_components) == 3)
+            assert (len(plot_components) == 3)
             var_name = plot_components[0]
             channel = plot_components[1] if plot_components[1] != '' else None
             group_name = plot_components[2]
         except Exception:
-            raise RuntimeError("Could not properly read filename of a diagnostic. Please try again.")
-        
+            raise RuntimeError(
+                f"Could not properly parse the filename '{plot_filename}' \
+                in the given directory. Please try again.")
+
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
                              (observation_name,))
