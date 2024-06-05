@@ -18,7 +18,7 @@ class Session(object):
 
         self._diagnostics = 0
         self._duplicates = 0
-        self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
+        self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=evagram user=postgres",
                                       password=os.getenv('DB_PASSWORD'))
         self._cursor = self._conn.cursor()
 
@@ -29,14 +29,14 @@ class Session(object):
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             self._run_task()
         except psycopg2.OperationalError as err:
-            print("OperationalError:", err)
+            raise
         except FileNotFoundError as err:
-            print("FileNotFoundError:", err)
+            raise
         except RuntimeError as err:
-            print("RuntimeError: ", err)
+            raise
         else:
-            print(f"Data successfully added into evagram for '{self.owner}' owner and \
-                  '{self.experiment}' experiment! Exiting session with: ")
+            print((f"Data successfully added into evagram for '{self.owner}' and "
+                   f"'{self.experiment}' experiment! Exiting session with: "))
             print("Number of diagnostics added:", self._diagnostics)
             print("Number of duplicates with same filename found:", self._duplicates)
             self._conn.commit()
@@ -62,9 +62,8 @@ class Session(object):
         self._cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
         conn_username = self._cursor.fetchone()[0]
         if conn_username != self.owner:
-            raise RuntimeError(
-                f"Connection refused, workflow owner '{self.owner}' does not match \
-                with username in database instance.")
+            raise RuntimeError((f"Connection refused, workflow owner '{self.owner}' does not match "
+                                "with username in database instance."))
 
     def _insert_table_record(self, data, table):
         self._cursor.execute(f"SELECT * FROM {table} LIMIT 0")
@@ -129,9 +128,8 @@ class Session(object):
             try:
                 dictionary = pickle.load(file)
             except Exception:
-                raise RuntimeError(
-                    f"There was a problem loading the diagnostics file '{plot_filename}' \
-                    in the given directory. Please try again.")
+                raise RuntimeError(("There was a problem loading the diagnostics file "
+                                    f"'{plot_filename}' in the given directory. Please try again."))
 
         # extract the div and script components
         div = dictionary['div']
@@ -147,9 +145,8 @@ class Session(object):
             channel = plot_components[1] if plot_components[1] != '' else None
             group_name = plot_components[2]
         except Exception:
-            raise RuntimeError(
-                f"Could not properly parse the filename '{plot_filename}' \
-                in the given directory. Please try again.")
+            raise RuntimeError((f"Could not properly parse the filename '{plot_filename}' "
+                                "in the given directory. Please try again."))
 
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
