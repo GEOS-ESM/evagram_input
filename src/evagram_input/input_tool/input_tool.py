@@ -1,5 +1,4 @@
-from . import config
-from . import test_config
+from evagram_input.dbconfig import dbconfig
 import pickle
 import os
 import psycopg2
@@ -8,16 +7,7 @@ import psycopg2
 class Session(object):
     """The session object opens a connection to the evagram database and serves as the
     central point for inputting data from a swell task."""
-    def __init__(self, owner: str, experiment: str, eva_directory: str, test_local=False):
-        self.username = config.user
-        self.dbname = config.dbname
-        self.host = config.host
-
-        if test_local:
-            self.username = test_config.user
-            self.dbname = test_config.dbname
-            self.host = test_config.host
-
+    def __init__(self, owner: str, experiment: str, eva_directory: str):
         self.owner = owner
         self.experiment = experiment
         self.eva_directory = eva_directory
@@ -27,9 +17,13 @@ class Session(object):
         self._conn = None
         self._cursor = None
 
+        # Warning: Set test_local to False for production
+        self.dbconfig = dbconfig.DatabaseConfiguration(test_local=True)
+        self.dbparams = self.dbconfig.get_db_parameters()
+
     def input_data(self):
         try:
-            self._conn = psycopg2.connect(user=self.username, database=self.dbname, host=self.host)
+            self._conn = psycopg2.connect(**self.dbparams)
             self._cursor = self._conn.cursor()
             self._verify_session_user()
             self.owner_id = self._add_current_user(self.owner)

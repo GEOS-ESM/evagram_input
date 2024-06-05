@@ -7,3 +7,4 @@
 **/CVS/
 /venv
 .env
+/build
