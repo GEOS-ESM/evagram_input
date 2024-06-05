@@ -3,8 +3,8 @@ from . import test_config
 
 
 class DatabaseConfiguration:
-    """The database configuration object configures keyword arguments for the evagram database connection
-    based on the current stage of the application development life cycle."""
+    """The database configuration object configures keyword arguments for the evagram database
+    connection based on the current stage of the application development life cycle."""
     def __init__(self, test_local=False):
         self.username = config.user
         self.dbname = config.dbname
