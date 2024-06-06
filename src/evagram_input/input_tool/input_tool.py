@@ -16,11 +16,18 @@ class Session(object):
         self.owner_id = None
         self.experiment_id = None
 
+        self._status = "OPEN"
         self._diagnostics = 0
-        self._duplicates = 0
         self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
                                       password=os.getenv('DB_PASSWORD'))
         self._cursor = self._conn.cursor()
+
+    def __repr__(self):
+        message = f"Status: {self._status}\n"
+        message += f"Owner: {self.owner}\n"
+        message += f"Experiment: {self.experiment}\n"
+        message += f"Number of diagnostics added: {self._diagnostics}\n"
+        return message
 
     def input_data(self):
         try:
@@ -28,26 +35,37 @@ class Session(object):
             self.owner_id = self._add_current_user(self.owner)
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             self._run_task()
-        except psycopg2.OperationalError as err:
+        except psycopg2.OperationalError:
+            self._status = "CLOSED AND ABORTED"
+            self._diagnostics = 0
             raise
-        except FileNotFoundError as err:
+        except FileNotFoundError:
+            self._status = "CLOSED AND ABORTED"
+            self._diagnostics = 0
             raise
-        except RuntimeError as err:
+        except RuntimeError:
+            self._status = "CLOSED AND ABORTED"
+            self._diagnostics = 0
+            raise
+        except RuntimeWarning:
+            self._status = "CLOSED WITH WARNING"
+            self._diagnostics = 0
             raise
         else:
-            print((f"Data successfully added into evagram for '{self.owner}' and "
-                   f"'{self.experiment}' experiment! Exiting session with: "))
-            print("Number of diagnostics added:", self._diagnostics)
-            print("Number of duplicates with same filename found:", self._duplicates)
+            self._status = "CLOSED WITH SUCCESS"
             self._conn.commit()
         finally:
+            if self._status == "OPEN":
+                self._status = "CLOSED"
             print("Terminating current workflow session...")
             self._cursor.close()
             self._conn.close()
             print("Session object closed!")
+            print(self)
 
     def _run_task(self):
         eva_directory_path = self.eva_directory
+        files_found = 0
         for observation_dir in os.listdir(eva_directory_path):
             observation_path = os.path.join(eva_directory_path, observation_dir)
             if os.path.isdir(observation_path):
@@ -55,6 +73,11 @@ class Session(object):
                     if plot.endswith(".pkl"):
                         self._add_plot(
                             eva_directory_path, observation_dir, plot, self.experiment_id)
+                        files_found += 1
+
+        if files_found == 0:
+            raise RuntimeWarning(("There was no diagnostics found in the given directory. "
+                                  "Make sure 'eva_directory' contains observation folders."))
 
     def _verify_session_user(self):
         self._cursor.execute("SELECT pg_backend_pid();")
@@ -85,9 +108,8 @@ class Session(object):
             query += ', '.join(["%s" for _ in range(len(data))])
             query += ")"
             self._cursor.execute(query, tuple(data.values()))
-            self._diagnostics += 1
-        else:
-            self._duplicates += 1
+            if table == "plots":
+                self._diagnostics += 1
 
     def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
