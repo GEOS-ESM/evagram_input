@@ -1,9 +1,7 @@
+from evagram_input.dbconfig import dbconfig
 import pickle
 import os
 import psycopg2
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class Session(object):
@@ -15,12 +13,18 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
-        self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
-                                      password=os.getenv('DB_PASSWORD'))
-        self._cursor = self._conn.cursor()
+
+        self._conn = None
+        self._cursor = None
+
+        # Warning: Set test_local to False for production
+        self.dbconfig = dbconfig.DatabaseConfiguration(test_local=True)
+        self.dbparams = self.dbconfig.get_db_parameters()
 
     def input_data(self):
         try:
+            self._conn = psycopg2.connect(**self.dbparams)
+            self._cursor = self._conn.cursor()
             self._verify_session_user()
             self.owner_id = self._add_current_user(self.owner)
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
