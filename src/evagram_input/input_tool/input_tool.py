@@ -16,17 +16,17 @@ class Session(object):
         self.owner_id = None
         self.experiment_id = None
 
-        self._status = "OPEN"
-        self._diagnostics = 0
+        self._num_diagnostics = 0
         self._conn = psycopg2.connect("host=127.0.0.1 port=5432 dbname=test_evagram user=postgres",
                                       password=os.getenv('DB_PASSWORD'))
         self._cursor = self._conn.cursor()
+        self._status_message = "CONNECTION OPEN"
 
     def __repr__(self):
-        message = f"Status: {self._status}\n"
+        message = f"Status: {self._conn.closed} ({self._status_message})\n"
         message += f"Owner: {self.owner}\n"
         message += f"Experiment: {self.experiment}\n"
-        message += f"Number of diagnostics added: {self._diagnostics}\n"
+        message += f"Number of diagnostics added: {self._num_diagnostics}\n"
         return message
 
     def input_data(self):
@@ -36,27 +36,25 @@ class Session(object):
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             self._run_task()
         except psycopg2.OperationalError:
-            self._status = "CLOSED AND ABORTED"
-            self._diagnostics = 0
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
             raise
         except FileNotFoundError:
-            self._status = "CLOSED AND ABORTED"
-            self._diagnostics = 0
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
             raise
         except RuntimeError:
-            self._status = "CLOSED AND ABORTED"
-            self._diagnostics = 0
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
             raise
         except RuntimeWarning:
-            self._status = "CLOSED WITH WARNING"
-            self._diagnostics = 0
+            self._status_message = "CONNECTION CLOSED WITH WARNING"
+            self._num_diagnostics = 0
             raise
         else:
-            self._status = "CLOSED WITH SUCCESS"
+            self._status_message = "CONNECTION CLOSED WITH SUCCESS"
             self._conn.commit()
         finally:
-            if self._status == "OPEN":
-                self._status = "CLOSED"
             print("Terminating current workflow session...")
             self._cursor.close()
             self._conn.close()
@@ -77,7 +75,8 @@ class Session(object):
 
         if files_found == 0:
             raise RuntimeWarning(("There was no diagnostics found in the given directory. "
-                                  "Make sure 'eva_directory' contains observation folders."))
+                                  "Make sure parameter 'eva_directory' contains "
+                                  "expected directory structure."))
 
     def _verify_session_user(self):
         self._cursor.execute("SELECT pg_backend_pid();")
@@ -109,7 +108,7 @@ class Session(object):
             query += ")"
             self._cursor.execute(query, tuple(data.values()))
             if table == "plots":
-                self._diagnostics += 1
+                self._num_diagnostics += 1
 
     def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
