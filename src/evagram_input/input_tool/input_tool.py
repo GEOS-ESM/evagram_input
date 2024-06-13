@@ -13,12 +13,12 @@ class Session(object):
         self.eva_directory = eva_directory
         self.owner_id = None
         self.experiment_id = None
-        
+
         self._conn = None
         self._cursor = None
         self._num_diagnostics = 0
         self._status_message = "CONNECTION OPEN"
-        
+
         # Warning: Set test_local to False for production
         self._dbconfig = dbconfig.DatabaseConfiguration(test_local=True)
         self._dbparams = self._dbconfig.get_db_parameters()
