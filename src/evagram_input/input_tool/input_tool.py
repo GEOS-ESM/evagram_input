@@ -16,29 +16,57 @@ class Session(object):
 
         self._conn = None
         self._cursor = None
+        self._num_diagnostics = 0
+        self._status_message = "CONNECTION OPEN"
 
         # Warning: Set test_local to False for production
-        self.dbconfig = dbconfig.DatabaseConfiguration(test_local=True)
-        self.dbparams = self.dbconfig.get_db_parameters()
+        self._dbconfig = dbconfig.DatabaseConfiguration(test_local=True)
+        self._dbparams = self._dbconfig.get_db_parameters()
+
+    def __repr__(self):
+        message = f"Status: {self._conn.closed} ({self._status_message})\n"
+        message += f"Owner: {self.owner}\n"
+        message += f"Experiment: {self.experiment}\n"
+        message += f"Number of diagnostics added: {self._num_diagnostics}\n"
+        return message
 
     def input_data(self):
         try:
-            self._conn = psycopg2.connect(**self.dbparams)
+            self._conn = psycopg2.connect(**self._dbparams)
             self._cursor = self._conn.cursor()
             self._verify_session_user()
             self.owner_id = self._add_current_user(self.owner)
             self.experiment_id = self._add_current_experiment(self.experiment, self.owner_id)
             self._run_task()
-        except psycopg2.OperationalError as err:
-            print(err)
+        except psycopg2.OperationalError:
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
+            raise
+        except FileNotFoundError:
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
+            raise
+        except RuntimeError:
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
+            raise
+        except RuntimeWarning:
+            self._status_message = "CONNECTION CLOSED WITH WARNING"
+            self._num_diagnostics = 0
+            raise
         else:
+            self._status_message = "CONNECTION CLOSED WITH SUCCESS"
             self._conn.commit()
         finally:
+            print("Terminating current workflow session...")
             self._cursor.close()
             self._conn.close()
+            print("Session object closed!")
+            print(self)
 
     def _run_task(self):
         eva_directory_path = self.eva_directory
+        files_found = 0
         for observation_dir in os.listdir(eva_directory_path):
             observation_path = os.path.join(eva_directory_path, observation_dir)
             if os.path.isdir(observation_path):
@@ -46,6 +74,12 @@ class Session(object):
                     if plot.endswith(".pkl"):
                         self._add_plot(
                             eva_directory_path, observation_dir, plot, self.experiment_id)
+                        files_found += 1
+
+        if files_found == 0:
+            raise RuntimeWarning(("There was no diagnostics found in the given directory. "
+                                  "Make sure parameter 'eva_directory' contains "
+                                  "expected directory structure."))
 
     def _verify_session_user(self):
         self._cursor.execute("SELECT pg_backend_pid();")
@@ -53,7 +87,8 @@ class Session(object):
         self._cursor.execute("SELECT usename FROM pg_stat_activity WHERE pid=%s", (conn_pid,))
         conn_username = self._cursor.fetchone()[0]
         if conn_username != self.owner:
-            raise Exception("Terminating session, invalid workflow parameters.")
+            raise RuntimeError((f"Connection refused, workflow owner '{self.owner}' does not match "
+                                "with username in database instance."))
 
     def _insert_table_record(self, data, table):
         self._cursor.execute(f"SELECT * FROM {table} LIMIT 0")
@@ -75,6 +110,8 @@ class Session(object):
             query += ', '.join(["%s" for _ in range(len(data))])
             query += ")"
             self._cursor.execute(query, tuple(data.values()))
+            if table == "plots":
+                self._num_diagnostics += 1
 
     def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
@@ -112,7 +149,11 @@ class Session(object):
             experiment_path, observation_name, plot_filename)
 
         with open(plot_file_path, 'rb') as file:
-            dictionary = pickle.load(file)
+            try:
+                dictionary = pickle.load(file)
+            except Exception:
+                raise RuntimeError(("There was a problem loading the diagnostics file "
+                                    f"'{plot_filename}' in the given directory. Please try again."))
 
         # extract the div and script components
         div = dictionary['div']
@@ -122,9 +163,14 @@ class Session(object):
         filename_no_extension = os.path.splitext(plot_filename)[0]
         plot_components = filename_no_extension.split("_")
 
-        var_name = plot_components[0]
-        channel = plot_components[1] if plot_components[1] != '' else None
-        group_name = plot_components[2]
+        try:
+            assert (len(plot_components) == 3)
+            var_name = plot_components[0]
+            channel = plot_components[1] if plot_components[1] != '' else None
+            group_name = plot_components[2]
+        except Exception:
+            raise RuntimeError((f"Could not properly parse the filename '{plot_filename}' "
+                                "in the given directory. Please try again."))
 
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
