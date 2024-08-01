@@ -115,10 +115,10 @@ class Session(object):
             self._cursor.execute(query, tuple(data.values()))
             if table == "plots":
                 self._num_diagnostics += 1
-    
+
     def _parse_cycle_time(self, cycle_time_str):
         formats = ["%Y%m%dT%H%M%SZ", "%Y%m%d%H%M%SZ"]
-        
+
         for fmt in formats:
             try:
                 return datetime.strptime(cycle_time_str, fmt)
@@ -177,20 +177,23 @@ class Session(object):
         plot_components = filename_no_extension.split("-")
 
         if len(plot_components) == 7:
-            variable_name, channel, group_name, reader_name, cycle_time, observation_name, plot_type = plot_components
+            variable_name, channel, group_name, reader_name, cycle_time, \
+                observation_name, plot_type = plot_components
         elif len(plot_components) == 6:
-            variable_name, group_name, reader_name, cycle_time, observation_name, plot_type = plot_components
+            variable_name, group_name, reader_name, cycle_time, \
+                observation_name, plot_type = plot_components
             channel = None
         else:
             raise ValueError((f"Could not properly parse the filename '{plot_filename}' "
-                                "in the given directory. Please try again."))
+                              "in the given directory. Please try again."))
 
         # validate reader name with the supported readers in database
         self._cursor.execute("SELECT reader_id FROM readers WHERE reader_name=%s",
                              (reader_name,))
         current_reader = self._cursor.fetchone()
-        if current_reader == None:
-            raise ValueError(f"Reader name '{reader_name}' does not match with the supported Eva readers.")
+        if current_reader is None:
+            raise ValueError(f"Reader name '{reader_name}' does not match"
+                             "with the supported Eva readers.")
         reader_id = current_reader[0]
 
         # parse cycle time string into a datetime object
@@ -199,7 +202,7 @@ class Session(object):
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
                              (observation_name,))
-        
+
         new_observation = len(self._cursor.fetchall()) == 0
         self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
