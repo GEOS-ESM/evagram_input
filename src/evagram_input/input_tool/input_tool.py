@@ -2,6 +2,8 @@ from evagram_input.dbconfig import dbconfig
 import pickle
 import os
 import psycopg2
+from datetime import datetime
+import pytz
 
 
 class Session(object):
@@ -54,6 +56,10 @@ class Session(object):
             self._status_message = "CONNECTION CLOSED WITH WARNING"
             self._num_diagnostics = 0
             raise
+        except Exception:
+            self._status_message = "CONNECTION CLOSED AND ABORTED"
+            self._num_diagnostics = 0
+            raise
         else:
             self._status_message = "CONNECTION CLOSED WITH SUCCESS"
             self._conn.commit()
@@ -67,14 +73,11 @@ class Session(object):
     def _run_task(self):
         eva_directory_path = self.eva_directory
         files_found = 0
-        for observation_dir in os.listdir(eva_directory_path):
-            observation_path = os.path.join(eva_directory_path, observation_dir)
-            if os.path.isdir(observation_path):
-                for plot in os.listdir(observation_path):
-                    if plot.endswith(".pkl"):
-                        self._add_plot(
-                            eva_directory_path, observation_dir, plot, self.experiment_id)
-                        files_found += 1
+        for plot in os.listdir(eva_directory_path):
+            if plot.endswith(".pkl"):
+                self._add_plot(
+                    eva_directory_path, plot, self.experiment_id)
+                files_found += 1
 
         if files_found == 0:
             raise RuntimeWarning(("There was no diagnostics found in the given directory. "
@@ -113,6 +116,16 @@ class Session(object):
             if table == "plots":
                 self._num_diagnostics += 1
 
+    def _parse_cycle_time(self, cycle_time_str):
+        formats = ["%Y%m%dT%H%M%SZ", "%Y%m%d%H%M%SZ"]
+
+        for fmt in formats:
+            try:
+                return datetime.strptime(cycle_time_str, fmt)
+            except ValueError:
+                continue
+        raise ValueError(f"Date string {cycle_time_str} is not in a recognized format.")
+
     def _add_current_user(self, username):
         # Adds the current user in the workflow and returns its identifier in the database
         self._cursor.execute("SELECT (owner_id) FROM owners WHERE username=%s", (username,))
@@ -131,22 +144,26 @@ class Session(object):
         # and returns its identifier in the database
         self._cursor.execute("""SELECT (experiment_id) FROM experiments
                     WHERE experiment_name=%s AND owner_id=%s""", (experiment_name, owner_id))
-        current_experiment = self._cursor.fetchall()
-        if len(current_experiment) == 1:
+        current_experiment = self._cursor.fetchone()
+        if current_experiment:
             # returns experiment_id of current experiment
-            return current_experiment[0][0]
+            return current_experiment[0]
         else:
+            # generate creation date for experiment
+            timezone = pytz.timezone("US/Eastern")
+            create_date = datetime.now(timezone)
             # creates a new experiment by the specified experiment name
             experiment_obj = {
                 "experiment_name": experiment_name,
-                "owner_id": owner_id
+                "owner_id": owner_id,
+                "create_date": create_date
             }
             self._insert_table_record(experiment_obj, "experiments")
             return self._add_current_experiment(experiment_name, owner_id)
 
-    def _add_plot(self, experiment_path, observation_name, plot_filename, experiment_id):
+    def _add_plot(self, experiment_path, plot_filename, experiment_id):
         plot_file_path = os.path.join(
-            experiment_path, observation_name, plot_filename)
+            experiment_path, plot_filename)
 
         with open(plot_file_path, 'rb') as file:
             try:
@@ -155,31 +172,42 @@ class Session(object):
                 raise RuntimeError(("There was a problem loading the diagnostics file "
                                     f"'{plot_filename}' in the given directory. Please try again."))
 
-        # extract the div and script components
-        div = dictionary['div']
-        script = dictionary['script']
-
         # parse filename for components variable name, channel, and group name
         filename_no_extension = os.path.splitext(plot_filename)[0]
-        plot_components = filename_no_extension.split("_")
+        plot_components = filename_no_extension.split("-")
 
-        try:
-            assert (len(plot_components) == 3)
-            var_name = plot_components[0]
-            channel = plot_components[1] if plot_components[1] != '' else None
-            group_name = plot_components[2]
-        except Exception:
-            raise RuntimeError((f"Could not properly parse the filename '{plot_filename}' "
-                                "in the given directory. Please try again."))
+        if len(plot_components) == 7:
+            variable_name, channel, group_name, reader_name, cycle_time, \
+                observation_name, plot_type = plot_components
+        elif len(plot_components) == 6:
+            variable_name, group_name, reader_name, cycle_time, \
+                observation_name, plot_type = plot_components
+            channel = None
+        else:
+            raise ValueError((f"Could not properly parse the filename '{plot_filename}' "
+                              "in the given directory. Please try again."))
+
+        # validate reader name with the supported readers in database
+        self._cursor.execute("SELECT reader_id FROM readers WHERE reader_name=%s",
+                             (reader_name,))
+        current_reader = self._cursor.fetchone()
+        if current_reader is None:
+            raise ValueError(f"Reader name '{reader_name}' does not match"
+                             "with the supported Eva readers.")
+        reader_id = current_reader[0]
+
+        # parse cycle time string into a datetime object
+        begin_cycle_time = self._parse_cycle_time(cycle_time)
 
         # insert observation, variable, group dynamically if not exist in database
         self._cursor.execute("SELECT observation_id FROM observations WHERE observation_name=%s",
                              (observation_name,))
+
         new_observation = len(self._cursor.fetchall()) == 0
         self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
             AND (channel=%s OR channel IS NULL)""",
-            (var_name, channel))
+            (variable_name, channel))
         new_variable = len(self._cursor.fetchall()) == 0
         self._cursor.execute("SELECT group_id FROM groups WHERE group_name=%s", (group_name,))
         new_group = len(self._cursor.fetchall()) == 0
@@ -192,7 +220,7 @@ class Session(object):
 
         if new_variable:
             variable_obj = {
-                "variable_name": var_name,
+                "variable_name": variable_name,
                 "channel": channel
             }
             self._insert_table_record(variable_obj, "variables")
@@ -210,19 +238,23 @@ class Session(object):
         self._cursor.execute(
             """SELECT variable_id FROM variables WHERE variable_name=%s
             AND (channel=%s OR channel IS NULL)""",
-            (var_name, channel))
+            (variable_name, channel))
         variable_id = self._cursor.fetchone()[0]
         self._cursor.execute("SELECT group_id FROM groups WHERE group_name=%s", (group_name,))
         group_id = self._cursor.fetchone()[0]
 
         # create plot object
-        plot_obj = {}
-        plot_obj["div"] = div
-        plot_obj["script"] = script
-        plot_obj["experiment_id"] = experiment_id
-        plot_obj["observation_id"] = observation_id
-        plot_obj["group_id"] = group_id
-        plot_obj["variable_id"] = variable_id
+        plot_obj = {
+            "plot_type": plot_type,
+            "begin_cycle_time": begin_cycle_time,
+            "div": dictionary['div'],
+            "script": dictionary['script'],
+            "experiment_id": experiment_id,
+            "reader_id": reader_id,
+            "observation_id": observation_id,
+            "variable_id": variable_id,
+            "group_id": group_id
+        }
 
         # insert plot to database
         self._insert_table_record(plot_obj, "plots")
