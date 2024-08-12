@@ -2,8 +2,7 @@ from evagram_input.dbconfig import dbconfig
 import pickle
 import os
 import psycopg2
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone
 
 
 class Session(object):
@@ -121,7 +120,7 @@ class Session(object):
 
         for fmt in formats:
             try:
-                return datetime.strptime(cycle_time_str, fmt)
+                return datetime.strptime(cycle_time_str, fmt).astimezone(timezone.utc)
             except ValueError:
                 continue
         raise ValueError(f"Date string {cycle_time_str} is not in a recognized format.")
@@ -150,8 +149,7 @@ class Session(object):
             return current_experiment[0]
         else:
             # generate creation date for experiment
-            timezone = pytz.timezone("US/Eastern")
-            create_date = datetime.now(timezone)
+            create_date = datetime.now(timezone.utc)
             # creates a new experiment by the specified experiment name
             experiment_obj = {
                 "experiment_name": experiment_name,
